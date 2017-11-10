@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta charset="utf-8" />
+        <title>Go Mandelbrot</title>
+
+        <link href="//cdnjs.cloudflare.com/ajax/libs/leaflet/1.0.1/leaflet.css" rel="stylesheet" />
+        <script src="//cdnjs.cloudflare.com/ajax/libs/leaflet/1.0.1/leaflet.js"></script>
+
+        <style>
+
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        </style>
+
+    </head>
+    <body onload="go()">
+        <div id="map"></div>
+
+        <script>
+
+var tileSize = 256
+var minX = -2
+var maxX = 2
+var minY = -2
+var maxY = 2
+
+function go(){
+  var maxDepth = 48; // precision is lost at any greater level
+  var map = L.map('map').setView([0, 0], Math.min(2, maxDepth));
+
+    L.TileLayer.Mandlebrot = L.TileLayer.extend({
+        getTileUrl: function(coords) {
+            return draw(coords.x, coords.y, coords.z);
+        },
+        getAttribution: function() {
+            return "<a href='https://github.com/richorama/frac-js'>frac-js</a>"
+        }
+    });
+
+    L.tileLayer.mandlebrot = function() {
+        return new L.TileLayer.Mandlebrot();
+    }
+
+    L.tileLayer.mandlebrot().addTo(map);
+
+    function draw(x,y,z){
+        var canvas = document.createElement("canvas");
+        canvas.width = tileSize;
+        canvas.height = tileSize;
+        var ctx = canvas.getContext("2d");
+        var imageData = ctx.getImageData(0, 0, tileSize, tileSize);
+        var data = imageData.data;
+            
+        var numberOfTiles = Math.pow(2,z)
+        var x1 = (maxX - minX) * (x - (numberOfTiles / 2)) / numberOfTiles;
+        var y1 = (maxY - minY) * (y - (numberOfTiles / 2)) / numberOfTiles;
+        var pixelSize = (maxX - minX) / (numberOfTiles * tileSize);
+
+        for (var i = 0; i < data.length; i += 4) {
+            var p = i / 4;
+            var dx = p % tileSize;
+            var dy = (p - dx) / tileSize;
+
+			var tx = x1 + (dx * pixelSize);
+			var ty = y1 + (dy * pixelSize);
+
+            value = getColour(tx, ty);
+
+			if (value >= 0) {
+				var sinVal = Math.floor(255 * Math.sin(value * Math.PI/255))
+                data[i]     = sinVal;     // red
+                data[i + 1] = value; // green
+                data[i + 2] = 255 - sinVal; // blue
+                data[i + 3] = 255; // alpha
+			} else {
+                //data[i]     = 0;     // red
+                //data[i + 1] = 0; // green
+                //data[i + 2] = 0; // blue
+                data[i + 3] = 255; // alpha
+			}
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        return canvas.toDataURL();
+    }
+}
+
+
+function getColour(re, im) {
+	var zRe = 0;
+	var zIm = 0;
+
+	//Variables to store the squares of the real and imaginary part.
+	var multZre = 0;
+	var multZim = 0;
+
+	//Start iterating the with the complex number to determine it's escape time (mandelValue)
+	var mandelValue  = 0;
+	while(mandelValue < 255) {
+		if (multZre+multZim >= 4) return mandelValue;
+
+		/*The new real part equals re(z)^2 - im(z)^2 + re(c), we store it in a temp variable
+		  tempRe because we still need re(z) in the next calculation
+		*/
+		var tempRe = multZre - multZim + re;
+
+		/*The new imaginary part is equal to 2*re(z)*im(z) + im(c)
+		 * Instead of multiplying these by 2 I add re(z) to itself and then multiply by im(z), which
+		 * means I just do 1 multiplication instead of 2.
+		 */
+		zRe += zRe
+		zIm = zRe*zIm + im
+
+		zRe = tempRe // We can now put the temp value in its place.
+
+		// Do the squaring now, they will be used in the next calculation.
+		multZre = zRe * zRe
+		multZim = zIm * zIm
+
+		//Increase the mandelValue by one, because the iteration is now finished.
+		mandelValue++
+	}
+	return -1
+}
+        </script>
+
+    </body>
+</html>
