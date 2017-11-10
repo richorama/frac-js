@@ -33,7 +33,7 @@ var maxY = 2
 
 function go(){
   var maxDepth = 48; // precision is lost at any greater level
-  var map = L.map('map').setView([0, 0], Math.min(2, maxDepth));
+  var map = L.map('map', {crs: L.CRS.Simple}).setView([-128, 128], Math.min(2, maxDepth));
 
     L.TileLayer.Mandlebrot = L.TileLayer.extend({
         getTileUrl: function(coords) {
