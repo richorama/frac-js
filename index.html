@@ -27,7 +27,10 @@
 const tileSize = 256
 const workerPool = [];
 
-for (let i = 0; i < 4; i++){
+// read the CPU count
+const concurrency = navigator.hardwareConcurrency || 4;
+
+for (let i = 0; i < concurrency; i++){
     const worker = new Worker('worker.js');
     worker.onmessage = workerComplete;
     workerPool.push(worker);
