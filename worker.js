@@ -4,28 +4,25 @@ onmessage = function(e) {
     postMessage({id:e.data.id, imageData: e.data.imageData});
 }
 
-var tileSize = 256
-var minX = -2
-var maxX = 2
-var minY = -2
-var maxY = 2
+const tileSize = 256
+const minX = -2
+const maxX = 2
+const minY = -2
+const maxY = 2
 
 function draw(x,y,z, data){
         
-    var numberOfTiles = Math.pow(2,z)
-    var x1 = (maxX - minX) * (x - (numberOfTiles / 2)) / numberOfTiles;
-    var y1 = (maxY - minY) * (y - (numberOfTiles / 2)) / numberOfTiles;
-    var pixelSize = (maxX - minX) / (numberOfTiles * tileSize);
+    const numberOfTiles = Math.pow(2,z)
+    const x1 = (maxX - minX) * (x - (numberOfTiles / 2)) / numberOfTiles;
+    const y1 = (maxY - minY) * (y - (numberOfTiles / 2)) / numberOfTiles;
+    const pixelSize = (maxX - minX) / (numberOfTiles * tileSize);
 
-    for (var i = 0; i < data.length; i += 4) {
-        var p = i / 4;
-        var dx = p % tileSize;
-        var dy = (p - dx) / tileSize;
+    for (let i = 0; i < data.length; i += 4) {
+        const p = i / 4;
+        const dx = p % tileSize;
+        const dy = (p - dx) / tileSize;
 
-        var tx = x1 + (dx * pixelSize);
-        var ty = y1 + (dy * pixelSize);
-
-        value = getColour(tx, ty);
+        value = getColour(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
 
         if (value >= 0) {
             var sinVal = Math.floor(255 * Math.sin(value * Math.PI/255))
@@ -43,22 +40,21 @@ function draw(x,y,z, data){
 }
 
 function getColour(re, im) {
-	var zRe = 0;
-	var zIm = 0;
+	let zRe = 0;
+	let zIm = 0;
 
 	//Variables to store the squares of the real and imaginary part.
-	var multZre = 0;
-	var multZim = 0;
+	let multZre = 0;
+	let multZim = 0;
 
 	//Start iterating the with the complex number to determine it's escape time (mandelValue)
-	var mandelValue  = 0;
-	while(mandelValue < 255) {
-		if (multZre+multZim >= 4) return mandelValue;
+	let mandelValue  = 0;
+	while (mandelValue < 255) {
+		if (multZre + multZim >= 4) return mandelValue;
 
 		/*The new real part equals re(z)^2 - im(z)^2 + re(c), we store it in a temp variable
 		  tempRe because we still need re(z) in the next calculation
 		*/
-		var tempRe = multZre - multZim + re;
 
 		/*The new imaginary part is equal to 2*re(z)*im(z) + im(c)
 		 * Instead of multiplying these by 2 I add re(z) to itself and then multiply by im(z), which
@@ -67,7 +63,7 @@ function getColour(re, im) {
 		zRe += zRe
 		zIm = zRe*zIm + im
 
-		zRe = tempRe // We can now put the temp value in its place.
+		zRe = multZre - multZim + re // We can now put the temp value in its place.
 
 		// Do the squaring now, they will be used in the next calculation.
 		multZre = zRe * zRe
