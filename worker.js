@@ -5,6 +5,7 @@ onmessage = function(e) {
 }
 
 const tileSize = 256
+const colourDepth = 1024;
 const minX = -2
 const maxX = 2
 const minY = -2
@@ -25,7 +26,7 @@ function draw(x,y,z, data){
         value = getColour(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
 
         if (value >= 0) {
-			const rgb = hslToRgb(value / 255, 0.5, 0.5);
+			const rgb = hslToRgb((value / 255) % 1, 0.5, 0.5);
             data[i]     = rgb[0];     // red
             data[i + 1] = rgb[1]; // green
             data[i + 2] = rgb[2]; // blue
@@ -49,7 +50,7 @@ function getColour(re, im) {
 
 	//Start iterating the with the complex number to determine it's escape time (mandelValue)
 	let mandelValue  = 0;
-	while (mandelValue < 255) {
+	while (mandelValue < colourDepth) {
 		if (multZre + multZim >= 4) return mandelValue;
 
 		/*The new real part equals re(z)^2 - im(z)^2 + re(c), we store it in a temp variable

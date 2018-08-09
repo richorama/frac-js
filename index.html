@@ -24,16 +24,46 @@
 
         <script>
 
-const tileSize = 256
-const workerPool = [];
+const workDistribution = function(options){
+    const queue = [];
+    const pool = [];
+    if (!options) options = {};
 
-// read the CPU count
-const concurrency = navigator.hardwareConcurrency || 4;
+    // set up workers
+    for (var i = 0; i < (options.concurrency || 4); i++){
+        const worker = new Worker(options.src);
+        worker.onmessage = function(e){
+            worker.working = false;
+            if (options.oncomplete) options.oncomplete(e);
+            schedule();
+        };
+        worker.working = false;
+        pool.push(worker);
+    }
 
-for (let i = 0; i < concurrency; i++){
-    const worker = new Worker('worker.js');
-    worker.onmessage = workerComplete;
-    workerPool.push(worker);
+    // execute the next item of work
+    const schedule = function(){
+        if (!queue.length) return;
+        const nextWorker = pool.filter(x => !x.working)[0]
+        if (!nextWorker) return;
+        var item = queue.pop();
+        nextWorker.working = true;
+        nextWorker.postMessage(item);
+    }
+
+    return {
+        push : function(item, cb){
+            queue.push(item);
+            schedule();
+        }
+    };
+}
+
+const options = {
+    centre: [-128,128],
+    tileSize : 256,
+    // precision is lost at any greater level
+    depth : 48  
 }
 
 const canvases = {};
@@ -49,8 +79,13 @@ function workerComplete(event){
 }
 
 function go(){
-  const maxDepth = 48; // precision is lost at any greater level
-  const map = L.map('map', {crs: L.CRS.Simple}).setView([-128, 128], Math.min(2, maxDepth));
+    var workPoolManager = workDistribution({
+        oncomplete : workerComplete,
+        concurrency : navigator.hardwareConcurrency,
+        src : 'worker.js'
+    });
+        
+    const map = L.map('map', {crs: L.CRS.Simple}).setView(options.centre, Math.min(2, options.depth));
 
     L.TileLayer.Mandlebrot = L.TileLayer.extend({
         getAttribution: function() {
@@ -71,10 +106,10 @@ function go(){
             tile.setAttribute('role', 'presentation');
 
             const canvas = document.createElement("canvas");
-            canvas.width = tileSize;
-            canvas.height = tileSize;
+            canvas.width = options.tileSize;
+            canvas.height = options.tileSize;
             const ctx = canvas.getContext("2d");
-            const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
+            const imageData = ctx.getImageData(0, 0, options.tileSize, options.tileSize);
 
             canvases[tile.id] = {
                 canvas:canvas,
@@ -82,8 +117,7 @@ function go(){
                 tile:tile
             };
 
-            workerPool[id % workerPool.length].postMessage({coords:coords, id:tile.id, imageData:imageData});
-
+            workPoolManager.push({coords:coords, id:tile.id, imageData:imageData});
             return tile;
         }
     });
