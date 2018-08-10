@@ -1,43 +1,49 @@
 onmessage = function(e) {
-    draw(e.data.coords.x, e.data.coords.y, e.data.coords.z, e.data.imageData.data)
+    var imageData = draw(e.data.coords.x, e.data.coords.y, e.data.coords.z)
     
-    postMessage({id:e.data.id, imageData: e.data.imageData});
+    postMessage({id:e.data.id, imageData: imageData});
 }
 
-const tileSize = 256
-const colourDepth = 1024;
-const minX = -2
-const maxX = 2
-const minY = -2
-const maxY = 2
+const settings = {
+	tileSize : 256,
+	iterations : 1024,
+	colourDepth : 256,
+	minX : -2,
+	maxX : 2,
+	minY : -2,
+	maxY : 2,
+	stride : 4
+}
 
 function draw(x,y,z, data){
+
+	const imageData = new ImageData(settings.tileSize, settings.tileSize);
+	var data = imageData.data;
         
     const numberOfTiles = Math.pow(2,z)
-    const x1 = (maxX - minX) * (x - (numberOfTiles / 2)) / numberOfTiles;
-    const y1 = (maxY - minY) * (y - (numberOfTiles / 2)) / numberOfTiles;
-    const pixelSize = (maxX - minX) / (numberOfTiles * tileSize);
+    const x1 = (settings.maxX - settings.minX) * (x - (numberOfTiles / 2)) / numberOfTiles;
+    const y1 = (settings.maxY - settings.minY) * (y - (numberOfTiles / 2)) / numberOfTiles;
+    const pixelSize = (settings.maxX - settings.minX) / (numberOfTiles * settings.tileSize);
 
-    for (let i = 0; i < data.length; i += 4) {
-        const p = i / 4;
-        const dx = p % tileSize;
-        const dy = (p - dx) / tileSize;
+    for (let i = 0; i < data.length; i += settings.stride) {
+        const p = i / settings.stride;
+        const dx = p % settings.tileSize;
+        const dy = (p - dx) / settings.tileSize;
 
         value = getColour(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
 
         if (value >= 0) {
-			const rgb = hslToRgb((value / 255) % 1, 0.5, 0.5);
+			const rgb = hslToRgb((value / settings.colourDepth) % 1, 0.5, 0.5);
             data[i]     = rgb[0];     // red
             data[i + 1] = rgb[1]; // green
             data[i + 2] = rgb[2]; // blue
             data[i + 3] = 255; // alpha
         } else {
-            //data[i]     = 0;     // red
-            //data[i + 1] = 0; // green
-            //data[i + 2] = 0; // blue
             data[i + 3] = 255; // alpha
         }
-    }
+	}
+	
+	return imageData;
 }
 
 function getColour(re, im) {
@@ -50,7 +56,7 @@ function getColour(re, im) {
 
 	//Start iterating the with the complex number to determine it's escape time (mandelValue)
 	let mandelValue  = 0;
-	while (mandelValue < colourDepth) {
+	while (mandelValue < settings.iterations) {
 		if (multZre + multZim >= 4) return mandelValue;
 
 		/*The new real part equals re(z)^2 - im(z)^2 + re(c), we store it in a temp variable

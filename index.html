@@ -62,20 +62,25 @@ const workDistribution = function(options){
 const options = {
     centre: [-128,128],
     tileSize : 256,
-    // precision is lost at any greater level
-    depth : 48  
+    depth : 48 // precision is lost at any greater level
 }
 
-const canvases = {};
+const tiles = {};
 var id = 0;
 
 function workerComplete(event){
-    var c = canvases[event.data.id]
-    if (!c){ return;}
+    var tile = tiles[event.data.id]
+    if (!tile) return;
 
-    c.ctx.putImageData(event.data.imageData, 0, 0);
-    c.tile.src = c.canvas.toDataURL();
-    delete canvases[event.data.id];
+    const canvas = document.createElement("canvas");
+    canvas.width = options.tileSize;
+    canvas.height = options.tileSize;
+
+    const ctx = canvas.getContext("2d");
+    ctx.putImageData(event.data.imageData, 0, 0);
+
+    tile.src = canvas.toDataURL();
+    delete tiles[event.data.id];
 }
 
 function go(){
@@ -105,27 +110,15 @@ function go(){
             tile.id = (id++).toString();
             tile.setAttribute('role', 'presentation');
 
-            const canvas = document.createElement("canvas");
-            canvas.width = options.tileSize;
-            canvas.height = options.tileSize;
-            const ctx = canvas.getContext("2d");
-            const imageData = ctx.getImageData(0, 0, options.tileSize, options.tileSize);
-
-            canvases[tile.id] = {
-                canvas:canvas,
-                ctx:ctx,
-                tile:tile
-            };
-
-            workPoolManager.push({coords:coords, id:tile.id, imageData:imageData});
+            // store a reference to the tile for future use
+            tiles[tile.id] = tile;
+            
+            workPoolManager.push({coords:coords, id:tile.id});
             return tile;
         }
     });
 
-    L.tileLayer.mandlebrot = function() {
-        return new L.TileLayer.Mandlebrot();
-    }
-
+    L.tileLayer.mandlebrot = () => new L.TileLayer.Mandlebrot();
     L.tileLayer.mandlebrot().addTo(map);
 }
 
