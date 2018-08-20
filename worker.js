@@ -17,62 +17,54 @@ const settings = {
 	CI: .156,
 }
 
-function draw(x,y,z, type){
-
+function draw(x, y, z, type){
 	const imageData = new ImageData(settings.tileSize, settings.tileSize);
-	var data = imageData.data;
-        
     const numberOfTiles = Math.pow(2,z)
     const x1 = (settings.maxX - settings.minX) * (x - (numberOfTiles / 2)) / numberOfTiles;
     const y1 = (settings.maxY - settings.minY) * (y - (numberOfTiles / 2)) / numberOfTiles;
-    const pixelSize = (settings.maxX - settings.minX) / (numberOfTiles * settings.tileSize);
+	const pixelSize = (settings.maxX - settings.minX) / (numberOfTiles * settings.tileSize);
+	const renderingFunction = renderingFunctions[type || 'mandlebrot'];
 
-    for (let i = 0; i < data.length; i += settings.stride) {
+    for (let i = 0; i < imageData.data.length; i += settings.stride) {
         const p = i / settings.stride;
         const dx = p % settings.tileSize;
         const dy = (p - dx) / settings.tileSize;
 
-		let value = 0;
-		if (type === 'mandlebrot'){
-			value = mandlebrot(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
-		}
-		if (type === 'julia'){
-			value = julia(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
-		}
-
+		const value = renderingFunction(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
+		
 		if (value >= 0) {
 			const rgb = hslToRgb((value / settings.colourDepth) % 1, 0.5, 0.5);
-            data[i]     = rgb[0];     // red
-            data[i + 1] = rgb[1]; // green
-            data[i + 2] = rgb[2]; // blue
-            data[i + 3] = 255; // alpha
+            imageData.data[i]     = rgb[0]; // red
+            imageData.data[i + 1] = rgb[1]; // green
+            imageData.data[i + 2] = rgb[2]; // blue
+            imageData.data[i + 3] = 255;    // alpha
         } else {
-            data[i + 3] = 255; // alpha
+            imageData.data[i + 3] = 255;    // alpha
         }
 	}
 	
 	return imageData;
 }
 
-function julia(real,imag) {
+const renderingFunctions = {};
+renderingFunctions.julia = (real,imag) => {
 	let zr = real;
 	let zi = imag;
 	let iterations = 0;
 
-	while (true) {
-		iterations++;
-		if ( iterations > settings.iterations ) return 0;
-		zr_next = zr * zr - zi * zi + settings.CR;
-		zi_next = 2 * zi * zr + settings.CI;
+	while (iterations < settings.iterations) {
+		const zr_next = zr * zr - zi * zi + settings.CR;
+		const zi_next = 2 * zi * zr + settings.CI;
 		zr = zr_next;
 		zi = zi_next;
 		if ( zr > 4 ) return iterations;
 		if ( zi > 4 ) return iterations;
+		iterations++;
 	}
-	return iterations;
+	return -1
 }
 
-function mandlebrot(real, imag) {
+renderingFunctions.mandlebrot = (real, imag) => {
 	let zRe = 0;
 	let zIm = 0;
 
