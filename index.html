@@ -25,7 +25,7 @@
         <script>
 
 const workDistribution = function(options){
-    const queue = [];
+    let queue = [];
     const pool = [];
     if (!options) options = {};
 
@@ -46,6 +46,11 @@ const workDistribution = function(options){
         if (!queue.length) return;
         const nextWorker = pool.filter(x => !x.working)[0]
         if (!nextWorker) return;
+
+        // remove tiles from the queue that have already been unloaded
+        queue = queue.filter(item => tiles[item.id]);
+        if (!queue.length) return;
+
         var item = queue.pop();
         nextWorker.working = true;
         nextWorker.postMessage(item);
@@ -93,6 +98,12 @@ function go(){
     const map = L.map('map', {crs: L.CRS.Simple}).setView(options.centre, Math.min(2, options.depth));
 
     L.TileLayer.Fractal = L.TileLayer.extend({
+        initialize:function(){
+            this.on('tileunload', this._tileUnload);
+        },
+        _tileUnload:function(ev){
+            delete tiles[ev.tile.id];
+        },
         setType:function(value){
             this._type = value;
         },
@@ -104,7 +115,7 @@ function go(){
 
             L.DomEvent.on(tile, 'load', L.Util.bind(this._tileOnLoad, this, done, tile));
             L.DomEvent.on(tile, 'error', L.Util.bind(this._tileOnError, this, done, tile));
-
+          
             if (this.options.crossOrigin) tile.crossOrigin = '';
 
             tile.alt = '';
