@@ -1,5 +1,5 @@
 onmessage = function(e) {
-    var imageData = draw(e.data.coords.x, e.data.coords.y, e.data.coords.z)
+    var imageData = draw(e.data.coords.x, e.data.coords.y, e.data.coords.z, e.data.type);
     
     postMessage({id:e.data.id, imageData: imageData});
 }
@@ -12,10 +12,12 @@ const settings = {
 	maxX : 2,
 	minY : -2,
 	maxY : 2,
-	stride : 4
+	stride : 4,
+	CR: -.8,
+	CI: .156,
 }
 
-function draw(x,y,z, data){
+function draw(x,y,z, type){
 
 	const imageData = new ImageData(settings.tileSize, settings.tileSize);
 	var data = imageData.data;
@@ -30,9 +32,15 @@ function draw(x,y,z, data){
         const dx = p % settings.tileSize;
         const dy = (p - dx) / settings.tileSize;
 
-        value = getColour(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
+		let value = 0;
+		if (type === 'mandlebrot'){
+			value = mandlebrot(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
+		}
+		if (type === 'julia'){
+			value = julia(x1 + (dx * pixelSize), y1 + (dy * pixelSize));
+		}
 
-        if (value >= 0) {
+		if (value >= 0) {
 			const rgb = hslToRgb((value / settings.colourDepth) % 1, 0.5, 0.5);
             data[i]     = rgb[0];     // red
             data[i + 1] = rgb[1]; // green
@@ -46,7 +54,25 @@ function draw(x,y,z, data){
 	return imageData;
 }
 
-function getColour(re, im) {
+function julia(real,imag) {
+	let zr = real;
+	let zi = imag;
+	let iterations = 0;
+
+	while (true) {
+		iterations++;
+		if ( iterations > settings.iterations ) return 0;
+		zr_next = zr * zr - zi * zi + settings.CR;
+		zi_next = 2 * zi * zr + settings.CI;
+		zr = zr_next;
+		zi = zi_next;
+		if ( zr > 4 ) return iterations;
+		if ( zi > 4 ) return iterations;
+	}
+	return iterations;
+}
+
+function mandlebrot(real, imag) {
 	let zRe = 0;
 	let zIm = 0;
 
@@ -68,9 +94,9 @@ function getColour(re, im) {
 		 * means I just do 1 multiplication instead of 2.
 		 */
 		zRe += zRe
-		zIm = zRe*zIm + im
+		zIm = zRe*zIm + imag
 
-		zRe = multZre - multZim + re // We can now put the temp value in its place.
+		zRe = multZre - multZim + real // We can now put the temp value in its place.
 
 		// Do the squaring now, they will be used in the next calculation.
 		multZre = zRe * zRe

@@ -92,7 +92,10 @@ function go(){
         
     const map = L.map('map', {crs: L.CRS.Simple}).setView(options.centre, Math.min(2, options.depth));
 
-    L.TileLayer.Mandlebrot = L.TileLayer.extend({
+    L.TileLayer.Fractal = L.TileLayer.extend({
+        setType:function(value){
+            this._type = value;
+        },
         getAttribution: function() {
             return "<a href='https://github.com/richorama/frac-js'>frac-js</a>"
         },
@@ -102,9 +105,7 @@ function go(){
             L.DomEvent.on(tile, 'load', L.Util.bind(this._tileOnLoad, this, done, tile));
             L.DomEvent.on(tile, 'error', L.Util.bind(this._tileOnError, this, done, tile));
 
-            if (this.options.crossOrigin) {
-                tile.crossOrigin = '';
-            }
+            if (this.options.crossOrigin) tile.crossOrigin = '';
 
             tile.alt = '';
             tile.id = (id++).toString();
@@ -113,13 +114,29 @@ function go(){
             // store a reference to the tile for future use
             tiles[tile.id] = tile;
             
-            workPoolManager.push({coords:coords, id:tile.id});
+            workPoolManager.push({coords:coords, id:tile.id, type : (this._type || 'mandlebrot')});
             return tile;
         }
     });
 
-    L.tileLayer.mandlebrot = () => new L.TileLayer.Mandlebrot();
-    L.tileLayer.mandlebrot().addTo(map);
+    L.tileLayer.mandlebrot = () => {
+        var layer = new L.TileLayer.Fractal();
+        layer.setType('mandlebrot');
+        return layer;
+    }
+    
+    const mandlebrot = L.tileLayer.mandlebrot().addTo(map);
+
+    L.tileLayer.julia = () => {
+        var layer = new L.TileLayer.Fractal();
+        layer.setType('julia');
+        return layer;
+    }
+    
+    const julia = L.tileLayer.julia();
+
+
+    L.control.layers({mandlebrot, julia}).addTo(map);
 }
 
         </script>
