@@ -32,11 +32,6 @@ const workDistribution = function(options){
     // set up workers
     for (var i = 0; i < (options.concurrency || 4); i++){
         const worker = new Worker(options.src);
-        worker.onmessage = function(e){
-            worker.working = false;
-            if (options.oncomplete) options.oncomplete(e);
-            schedule();
-        };
         worker.working = false;
         pool.push(worker);
     }
@@ -47,18 +42,20 @@ const workDistribution = function(options){
         const nextWorker = pool.filter(x => !x.working)[0]
         if (!nextWorker) return;
 
-        // remove tiles from the queue that have already been unloaded
-        queue = queue.filter(item => tiles[item.id]);
-        if (!queue.length) return;
-
-        var item = queue.pop();
+        var work = queue.pop();
         nextWorker.working = true;
-        nextWorker.postMessage(item);
+        nextWorker.onmessage = function(e){
+            nextWorker.working = false;
+            work.cb(e);
+            schedule();
+        }
+        nextWorker.postMessage(work.item);
+        
     }
 
     return {
         push : function(item, cb){
-            queue.push(item);
+            queue.push({item:item, cb:cb});
             schedule();
         }
     };
@@ -70,39 +67,18 @@ const options = {
     depth : 48 // precision is lost at any greater level
 }
 
-const tiles = {};
-var id = 0;
-
-function workerComplete(event){
-    var tile = tiles[event.data.id]
-    if (!tile) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = options.tileSize;
-    canvas.height = options.tileSize;
-
-    const ctx = canvas.getContext("2d");
-    ctx.putImageData(event.data.imageData, 0, 0);
-
-    tile.src = canvas.toDataURL();
-    delete tiles[event.data.id];
-}
 
 function go(){
     var workPoolManager = workDistribution({
-        oncomplete : workerComplete,
         concurrency : navigator.hardwareConcurrency,
         src : 'worker.js'
     });
         
-    const map = L.map('map', {crs: L.CRS.Simple}).setView(options.centre, Math.min(2, options.depth));
+    const map = L.map('map', {crs: L.CRS.Simple, maxZoom : options.depth}).setView(options.centre, 2);
 
     L.TileLayer.Fractal = L.TileLayer.extend({
         initialize:function(){
-            this.on('tileunload', this._tileUnload);
-        },
-        _tileUnload:function(ev){
-            delete tiles[ev.tile.id];
+            this.on('tileunload', e => e.tile.removed = true);
         },
         setType:function(value){
             this._type = value;
@@ -119,13 +95,20 @@ function go(){
             if (this.options.crossOrigin) tile.crossOrigin = '';
 
             tile.alt = '';
-            tile.id = (id++).toString();
             tile.setAttribute('role', 'presentation');
 
-            // store a reference to the tile for future use
-            tiles[tile.id] = tile;
-            
-            workPoolManager.push({coords:coords, id:tile.id, type : (this._type || 'mandlebrot')});
+            workPoolManager.push({coords:coords, id:tile.id, type : (this._type || 'mandlebrot')}, (e) => {
+                if (tile.removed) return; // don't bother, this tile has been removed
+
+                const canvas = document.createElement("canvas");
+                canvas.height = canvas.width = options.tileSize;
+
+                const ctx = canvas.getContext("2d");
+                ctx.putImageData(event.data.imageData, 0, 0);
+
+                tile.src = canvas.toDataURL();
+    
+            });
             return tile;
         }
     });
