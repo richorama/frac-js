@@ -24,10 +24,9 @@
 
         <script>
 
-const workDistribution = function(options){
+const WorkDistribution = function(options){
     let queue = [];
     const pool = [];
-    if (!options) options = {};
 
     // set up workers
     for (var i = 0; i < (options.concurrency || 4); i++){
@@ -37,26 +36,31 @@ const workDistribution = function(options){
     }
 
     // execute the next item of work
-    const schedule = function(){
+    const processQueue = function(){
+        // remove cancelled work items
+        queue = queue.filter(work => !work.cancel);
         if (!queue.length) return;
         const nextWorker = pool.filter(x => !x.working)[0]
         if (!nextWorker) return;
 
         var work = queue.pop();
+        
         nextWorker.working = true;
         nextWorker.onmessage = function(e){
             nextWorker.working = false;
+            if (work.cancel) return; // don't bother to notify if cancelled
             work.cb(e);
-            schedule();
+            processQueue();
         }
         nextWorker.postMessage(work.item);
-        
     }
 
     return {
         push : function(item, cb){
-            queue.push({item:item, cb:cb});
-            schedule();
+            const work = {item:item, cb:cb, cancel:false};
+            queue.push(work);
+            processQueue();
+            return () => work.cancel = true;
         }
     };
 }
@@ -69,7 +73,7 @@ const options = {
 
 
 function go(){
-    var workPoolManager = workDistribution({
+    var workPool = WorkDistribution({
         concurrency : navigator.hardwareConcurrency,
         src : 'worker.js'
     });
@@ -78,7 +82,7 @@ function go(){
 
     L.TileLayer.Fractal = L.TileLayer.extend({
         initialize:function(){
-            this.on('tileunload', e => e.tile.removed = true);
+            this.on('tileunload', e => e.tile.cancel());
         },
         setType:function(value){
             this._type = value;
@@ -88,18 +92,10 @@ function go(){
         },
         createTile:function(coords, done){
             const tile = document.createElement('img');
-
             L.DomEvent.on(tile, 'load', L.Util.bind(this._tileOnLoad, this, done, tile));
             L.DomEvent.on(tile, 'error', L.Util.bind(this._tileOnError, this, done, tile));
-          
-            if (this.options.crossOrigin) tile.crossOrigin = '';
-
-            tile.alt = '';
             tile.setAttribute('role', 'presentation');
-
-            workPoolManager.push({coords:coords, id:tile.id, type : (this._type || 'mandlebrot')}, (e) => {
-                if (tile.removed) return; // don't bother, this tile has been removed
-
+            tile.cancel = workPool.push({coords:coords, id:tile.id, type : (this._type || 'mandlebrot')}, (e) => {
                 const canvas = document.createElement("canvas");
                 canvas.height = canvas.width = options.tileSize;
 
