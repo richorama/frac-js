@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-        <meta charset="utf-8" />
-        <title>frac-js</title>
 
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.3/dist/leaflet.css" integrity="sha512-Rksm5RenBEKSKFjgI3a41vrjkw4EVPlJ3+OiI65vTjIdo9brlAacEuKOiQ5OFh7cOI1bkDwLqdLw3Zg0cRJAAQ==" crossorigin=""/>
-        <script src="https://unpkg.com/leaflet@1.3.3/dist/leaflet.js" integrity="sha512-tAGcCfR4Sc5ZP5ZoVz0quoZDYX5aCtEm/eu1KhSLj2c9eFrylXZknQYmxUssFaVJKvvc0dJQixhGjG2yXWiV9Q==" crossorigin=""></script>
-      <style>
+<head>
+    <meta charset="utf-8" />
+    <title>frac-js</title>
 
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css"
+        integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+        crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"
+        integrity="sha512-GffPMF3RvMeYyc1LWMHtK8EbPv0iNZ8/oTtHPx9/cc2ILxQ+u905qIwdpULaqDkyBKgOaB57QTMg7ztg8Jm2Og=="
+        crossorigin=""></script>
+    <style>
         #map {
             position: absolute;
             top: 0;
@@ -15,121 +19,134 @@
             width: 100vw;
             height: 100vh;
         }
+    </style>
 
-        </style>
+</head>
 
-    </head>
-    <body onload="go()">
-        <div id="map"></div>
+<body onload="go()">
+    <div id="map"></div>
 
-        <script>
+    <script>
 
-const WorkDistribution = function(options){
-    let queue = [];
-    const pool = [];
+const WorkDistribution = function(options) {
+  let queue = []
+  const pool = []
 
-    // set up workers
-    for (var i = 0; i < (options.concurrency || 4); i++){
-        const worker = new Worker(options.src);
-        worker.working = false;
-        pool.push(worker);
+  // set up workers
+  for (var i = 0; i < (options.concurrency || 4); i++) {
+    const worker = new Worker(options.src)
+    worker.working = false
+    pool.push(worker)
+  }
+
+  // execute the next item of work
+  const processQueue = function() {
+    // remove cancelled work items
+    queue = queue.filter(work => !work.cancel)
+    if (!queue.length) return
+    const nextWorker = pool.filter(x => !x.working)[0]
+    if (!nextWorker) return
+
+    var work = queue.pop()
+
+    nextWorker.working = true
+    nextWorker.onmessage = function(e) {
+      nextWorker.working = false
+      if (work.cancel) return // don't bother to notify if cancelled
+      work.cb(e)
+      processQueue()
     }
+    nextWorker.postMessage(work.item)
+  }
 
-    // execute the next item of work
-    const processQueue = function(){
-        // remove cancelled work items
-        queue = queue.filter(work => !work.cancel);
-        if (!queue.length) return;
-        const nextWorker = pool.filter(x => !x.working)[0]
-        if (!nextWorker) return;
-
-        var work = queue.pop();
-        
-        nextWorker.working = true;
-        nextWorker.onmessage = function(e){
-            nextWorker.working = false;
-            if (work.cancel) return; // don't bother to notify if cancelled
-            work.cb(e);
-            processQueue();
-        }
-        nextWorker.postMessage(work.item);
+  return {
+    push: function(item, cb) {
+      const work = { item: item, cb: cb, cancel: false }
+      queue.push(work)
+      processQueue()
+      return () => (work.cancel = true)
     }
-
-    return {
-        push : function(item, cb){
-            const work = {item:item, cb:cb, cancel:false};
-            queue.push(work);
-            processQueue();
-            return () => work.cancel = true;
-        }
-    };
+  }
 }
 
 const options = {
-    centre: [-128,128],
-    tileSize : 256,
-    depth : 48 // precision is lost at any greater level
+  centre: [-128, 128],
+  tileSize: 256,
+  depth: 48 // precision is lost at any greater level
 }
 
+function go() {
+  var workPool = WorkDistribution({
+    concurrency: navigator.hardwareConcurrency,
+    src: 'worker.js'
+  })
 
-function go(){
-    var workPool = WorkDistribution({
-        concurrency : navigator.hardwareConcurrency,
-        src : 'worker.js'
-    });
-        
-    const map = L.map('map', {crs: L.CRS.Simple, maxZoom : options.depth}).setView(options.centre, 2);
+  const map = L.map('map', {
+    crs: L.CRS.Simple,
+    maxZoom: options.depth
+  }).setView(options.centre, 2)
 
-    L.TileLayer.Fractal = L.TileLayer.extend({
-        initialize:function(){
-            this.on('tileunload', e => e.tile.cancel());
-        },
-        setType:function(value){
-            this._type = value;
-        },
-        getAttribution: function() {
-            return "<a href='https://github.com/richorama/frac-js'>frac-js</a>"
-        },
-        createTile:function(coords, done){
-            const tile = document.createElement('img');
-            L.DomEvent.on(tile, 'load', L.Util.bind(this._tileOnLoad, this, done, tile));
-            L.DomEvent.on(tile, 'error', L.Util.bind(this._tileOnError, this, done, tile));
-            tile.setAttribute('role', 'presentation');
-            tile.cancel = workPool.push({coords:coords, id:tile.id, type : (this._type || 'mandlebrot')}, (e) => {
-                const canvas = document.createElement("canvas");
-                canvas.height = canvas.width = options.tileSize;
+  L.TileLayer.Fractal = L.TileLayer.extend({
+    initialize: function() {
+      this.on('tileunload', e => e.tile.cancel())
+    },
+    setType: function(value) {
+      this._type = value
+    },
+    getAttribution: function() {
+      return "<a href='https://github.com/richorama/frac-js'>frac-js</a>"
+    },
+    createTile: function(coords, done) {
+      const tile = document.createElement('img')
+      L.DomEvent.on(
+        tile,
+        'load',
+        L.Util.bind(this._tileOnLoad, this, done, tile)
+      )
+      L.DomEvent.on(
+        tile,
+        'error',
+        L.Util.bind(this._tileOnError, this, done, tile)
+      )
+      tile.setAttribute('role', 'presentation')
+      tile.cancel = workPool.push(
+        { coords: coords, id: tile.id, type: this._type || 'mandlebrot' },
+        e => {
+          const canvas = document.createElement('canvas')
+          canvas.height = canvas.width = options.tileSize
 
-                const ctx = canvas.getContext("2d");
-                ctx.putImageData(event.data.imageData, 0, 0);
+          const ctx = canvas.getContext('2d')
+          ctx.putImageData(event.data.imageData, 0, 0)
 
-                tile.src = canvas.toDataURL();
-    
-            });
-            return tile;
+          tile.src = canvas.toDataURL()
         }
-    });
-
-    L.tileLayer.mandlebrot = () => {
-        var layer = new L.TileLayer.Fractal();
-        layer.setType('mandlebrot');
-        return layer;
+      )
+      return tile
     }
-    
-    const mandlebrot = L.tileLayer.mandlebrot().addTo(map);
+  })
 
-    L.tileLayer.julia = () => {
-        var layer = new L.TileLayer.Fractal();
-        layer.setType('julia');
-        return layer;
-    }
-    
-    const julia = L.tileLayer.julia();
+  L.tileLayer.mandlebrot = () => {
+    var layer = new L.TileLayer.Fractal()
+    layer.setType('mandlebrot')
+    return layer
+  }
 
+  const mandlebrot = L.tileLayer.mandlebrot().addTo(map)
 
-    L.control.layers({mandlebrot, julia}).addTo(map);
+  L.tileLayer.julia = () => {
+    var layer = new L.TileLayer.Fractal()
+    layer.setType('julia')
+    return layer
+  }
+
+  const julia = L.tileLayer.julia()
+
+  L.control.layers({ mandlebrot, julia }).addTo(map)
 }
 
-        </script>
 
-    </body>
+    </script>
+
+</body>
+
 </html>
