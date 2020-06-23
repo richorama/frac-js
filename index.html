@@ -116,7 +116,7 @@ function go() {
           canvas.height = canvas.width = options.tileSize
 
           const ctx = canvas.getContext('2d')
-          ctx.putImageData(event.data.imageData, 0, 0)
+          ctx.putImageData(e.data.imageData, 0, 0)
 
           tile.src = canvas.toDataURL()
         }
