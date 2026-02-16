@@ -1,5 +1,5 @@
 onmessage = function(e) {
-  var imageData = draw(
+  const imageData = draw(
     e.data.coords.x,
     e.data.coords.y,
     e.data.coords.z,
@@ -31,7 +31,7 @@ function draw(x, y, z, type) {
     ((settings.maxY - settings.minY) * (y - numberOfTiles / 2)) / numberOfTiles
   const pixelSize =
     (settings.maxX - settings.minX) / (numberOfTiles * settings.tileSize)
-  const renderingFunction = renderingFunctions[type || 'mandlebrot']
+  const renderingFunction = renderingFunctions[type || 'mandelbrot']
 
   for (let i = 0; i < imageData.data.length; i += settings.stride) {
     const p = i / settings.stride
@@ -65,14 +65,13 @@ renderingFunctions.julia = (real, imag) => {
     const zi_next = 2 * zi * zr + settings.CI
     zr = zr_next
     zi = zi_next
-    if (zr > 4) return iterations
-    if (zi > 4) return iterations
+    if (zr * zr + zi * zi >= 4) return iterations
     iterations++
   }
   return -1
 }
 
-renderingFunctions.mandlebrot = (real, imag) => {
+renderingFunctions.mandelbrot = (real, imag) => {
   let zRe = 0
   let zIm = 0
 
@@ -120,7 +119,7 @@ function hue2rgb(p, q, t) {
 function hslToRgb(h, s, l) {
   let r, g, b
 
-  if (s == 0) {
+  if (s === 0) {
     r = g = b = l // achromatic
   } else {
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s
