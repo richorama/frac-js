@@ -129,7 +129,7 @@ function go() {
     return layer
   }
 
-  const julia = L.tileLayer.julia()
+  const julia = L.gridLayer.julia()
 
   L.control.layers({ mandelbrot, julia }).addTo(map)
 }
